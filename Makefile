@@ -12,6 +12,11 @@ fetch-schema: $(PGQUE_SQL) ## Download pgque.sql at the pinned commit
 $(PGQUE_SQL):
 	curl -sSfL $(PGQUE_SQL_URL) -o $@
 
+.PHONY: format
+format: ## Format all Go code with golangci-lint fmt
+	go tool golangci-lint fmt ./...
+	go tool golangci-lint fmt ./e2e/...
+
 .PHONY: lint
 lint: ## Run golangci-lint on all modules
 	go tool golangci-lint run ./...
