@@ -1,0 +1,62 @@
+name: Check
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**/*.md']
+  pull_request:
+    branches: [main]
+    paths-ignore: ['**/*.md']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: '**/*.sum'
+      - name: Format check
+        run: |
+          gofmt -l . e2e
+          if [ -n "$(gofmt -l . e2e)" ]; then
+            echo "Files not gofmt'd:"
+            gofmt -l . e2e
+            exit 1
+          fi
+      - name: Lint (root)
+        run: go tool golangci-lint run ./...
+      - name: Lint (e2e)
+        run: go tool golangci-lint run ./e2e/...
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: '**/*.sum'
+      - name: Unit tests
+        run: go test -race ./...
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: '**/*.sum'
+      - name: Fetch pgque schema
+        run: make fetch-schema
+      - name: E2E tests
+        run: make test.e2e
