@@ -8,19 +8,29 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	pgque "github.com/dio/pgque"
 )
 
 // setupQueue creates a queue + consumer and registers cleanup.
+// ticker_max_count=1 and ticker_max_lag=0 ensure ticker() always fires
+// immediately in tests regardless of how quickly successive calls are made.
 func setupQueue(t *testing.T, client *pgque.Client, queue, consumer string) {
 	t.Helper()
 	ctx := context.Background()
-	if _, err := client.Pool().Exec(ctx, "SELECT pgque.create_queue($1)", queue); err != nil {
-		t.Fatalf("create_queue: %v", err)
-	}
-	if _, err := client.Pool().Exec(ctx, "SELECT pgque.register_consumer($1, $2)", queue, consumer); err != nil {
-		t.Fatalf("register_consumer: %v", err)
-	}
+	_, err := client.Pool().Exec(ctx, "SELECT pgque.create_queue($1)", queue)
+	require.NoError(t, err, "create_queue")
+
+	_, err = client.Pool().Exec(ctx, "SELECT pgque.register_consumer($1, $2)", queue, consumer)
+	require.NoError(t, err, "register_consumer")
+
+	_, err = client.Pool().Exec(ctx, "SELECT pgque.set_queue_config($1, 'ticker_max_count', '1')", queue)
+	require.NoError(t, err, "set ticker_max_count")
+
+	_, err = client.Pool().Exec(ctx, "SELECT pgque.set_queue_config($1, 'ticker_max_lag', '0')", queue)
+	require.NoError(t, err, "set ticker_max_lag")
+
 	t.Cleanup(func() {
 		ctx := context.Background()
 		client.Pool().Exec(ctx, "SELECT pgque.unregister_consumer($1, $2)", queue, consumer) //nolint:errcheck
@@ -31,17 +41,14 @@ func setupQueue(t *testing.T, client *pgque.Client, queue, consumer string) {
 // ticker manually advances the queue (replaces pg_cron in tests).
 func ticker(t *testing.T, client *pgque.Client) {
 	t.Helper()
-	if _, err := client.Pool().Exec(context.Background(), "SELECT pgque.ticker()"); err != nil {
-		t.Fatalf("ticker: %v", err)
-	}
+	_, err := client.Pool().Exec(context.Background(), "SELECT pgque.ticker()")
+	require.NoError(t, err, "ticker")
 }
 
 func newClient(t *testing.T) *pgque.Client {
 	t.Helper()
 	client, err := pgque.Connect(context.Background(), testDSN)
-	if err != nil {
-		t.Fatalf("connect: %v", err)
-	}
+	require.NoError(t, err, "connect")
 	t.Cleanup(client.Close)
 	return client
 }
@@ -54,12 +61,8 @@ func TestSend(t *testing.T) {
 		Type:    "order.created",
 		Payload: map[string]any{"order_id": 1},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if eid == 0 {
-		t.Fatal("expected non-zero event ID")
-	}
+	require.NoError(t, err)
+	require.NotZero(t, eid, "expected non-zero event ID")
 }
 
 func TestSendDefaultType(t *testing.T) {
@@ -69,12 +72,8 @@ func TestSendDefaultType(t *testing.T) {
 	eid, err := client.Send(context.Background(), "test_default_type", pgque.Event{
 		Payload: map[string]any{"x": 1},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if eid == 0 {
-		t.Fatal("expected non-zero event ID")
-	}
+	require.NoError(t, err)
+	require.NotZero(t, eid)
 }
 
 func TestSendReceiveAck(t *testing.T) {
@@ -86,44 +85,25 @@ func TestSendReceiveAck(t *testing.T) {
 		Type:    "ping",
 		Payload: map[string]any{"val": 42},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	ticker(t, client)
 
 	msgs, err := client.Receive(ctx, "test_sra", "c1", 10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(msgs) != 1 {
-		t.Fatalf("want 1 message, got %d", len(msgs))
-	}
+	require.NoError(t, err)
+	require.Len(t, msgs, 1)
+	require.Equal(t, "ping", msgs[0].Type)
 
-	msg := msgs[0]
-	if msg.Type != "ping" {
-		t.Fatalf("want type=ping, got %q", msg.Type)
-	}
 	var payload map[string]any
-	if err := json.Unmarshal([]byte(msg.Payload), &payload); err != nil {
-		t.Fatalf("unmarshal payload: %v", err)
-	}
-	if payload["val"] != float64(42) {
-		t.Fatalf("want val=42, got %v", payload["val"])
-	}
+	require.NoError(t, json.Unmarshal([]byte(msgs[0].Payload), &payload))
+	require.Equal(t, float64(42), payload["val"])
 
-	if err := client.Ack(ctx, msg.BatchID); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, client.Ack(ctx, msgs[0].BatchID))
 
 	// Queue should be empty after ack.
 	ticker(t, client)
 	msgs2, err := client.Receive(ctx, "test_sra", "c1", 10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(msgs2) != 0 {
-		t.Fatalf("want empty queue after ack, got %d messages", len(msgs2))
-	}
+	require.NoError(t, err)
+	require.Empty(t, msgs2)
 }
 
 func TestNack(t *testing.T) {
@@ -135,48 +115,35 @@ func TestNack(t *testing.T) {
 		Type:    "job",
 		Payload: map[string]any{"attempt": 1},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	ticker(t, client)
 
 	msgs, err := client.Receive(ctx, "test_nack", "c1", 10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(msgs) != 1 {
-		t.Fatalf("want 1 message, got %d", len(msgs))
-	}
+	require.NoError(t, err)
+	require.Len(t, msgs, 1)
 
-	// Nack the message with a 0-second retry delay so it's immediately eligible.
-	if err := client.Nack(ctx, msgs[0].BatchID, msgs[0], 0, "simulated failure"); err != nil {
-		t.Fatal(err)
-	}
-	// Still ack the batch to advance the consumer.
-	if err := client.Ack(ctx, msgs[0].BatchID); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, client.Nack(ctx, msgs[0].BatchID, msgs[0], 0, "simulated failure"))
+	require.NoError(t, client.Ack(ctx, msgs[0].BatchID))
 
-	// Run maintenance to move the retry back into the event table.
-	if _, err := client.Pool().Exec(ctx, "SELECT pgque.maint()"); err != nil {
-		t.Fatalf("maint: %v", err)
-	}
-	ticker(t, client)
+	// maint_retry_events moves the event from retry_queue back into the event
+	// table. Note: pgque.maint() does NOT call maint_retry_events — that
+	// function is invoked separately (e.g. by the maint job via pg_cron).
+	_, err = client.Pool().Exec(ctx, "SELECT pgque.maint_retry_events()")
+	require.NoError(t, err)
 
-	retried, err := client.Receive(ctx, "test_nack", "c1", 10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(retried) != 1 {
-		t.Fatalf("want 1 retried message, got %d", len(retried))
-	}
-	if retried[0].RetryCount == nil || *retried[0].RetryCount < 1 {
-		t.Fatalf("want retry_count >= 1, got %v", retried[0].RetryCount)
-	}
-
-	if err := client.Ack(ctx, retried[0].BatchID); err != nil {
-		t.Fatal(err)
-	}
+	// Ticker may throttle — poll until the retried message appears.
+	require.Eventually(t, func() bool {
+		ticker(t, client)
+		retried, err := client.Receive(ctx, "test_nack", "c1", 10)
+		require.NoError(t, err)
+		if len(retried) == 0 {
+			return false
+		}
+		require.NotNil(t, retried[0].RetryCount)
+		require.GreaterOrEqual(t, *retried[0].RetryCount, 1)
+		require.NoError(t, client.Ack(ctx, retried[0].BatchID))
+		return true
+	}, 5*time.Second, 100*time.Millisecond)
 }
 
 func TestConsumerDispatch(t *testing.T) {
@@ -189,9 +156,7 @@ func TestConsumerDispatch(t *testing.T) {
 		Type:    "greet",
 		Payload: map[string]any{"name": "pgque"},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	ticker(t, client)
 
 	received := make(chan pgque.Message, 1)
@@ -206,9 +171,7 @@ func TestConsumerDispatch(t *testing.T) {
 
 	select {
 	case msg := <-received:
-		if msg.Type != "greet" {
-			t.Fatalf("want type=greet, got %q", msg.Type)
-		}
+		require.Equal(t, "greet", msg.Type)
 	case <-ctx.Done():
 		t.Fatal("timeout waiting for message")
 	}
@@ -224,9 +187,7 @@ func TestConsumerCatchAll(t *testing.T) {
 		Type:    "unknown.type",
 		Payload: map[string]any{},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	ticker(t, client)
 
 	received := make(chan pgque.Message, 1)
@@ -241,9 +202,7 @@ func TestConsumerCatchAll(t *testing.T) {
 
 	select {
 	case msg := <-received:
-		if msg.Type != "unknown.type" {
-			t.Fatalf("want type=unknown.type, got %q", msg.Type)
-		}
+		require.Equal(t, "unknown.type", msg.Type)
 	case <-ctx.Done():
 		t.Fatal("timeout waiting for catch-all message")
 	}
