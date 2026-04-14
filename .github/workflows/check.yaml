@@ -24,10 +24,8 @@ jobs:
         with:
           go-version-file: go.mod
           cache-dependency-path: '**/*.sum'
-      - name: Lint (root)
-        run: go tool golangci-lint run ./...
-      - name: Lint (e2e)
-        run: go tool golangci-lint run ./e2e/...
+      - name: Lint
+        run: make lint
 
   test:
     runs-on: ubuntu-latest

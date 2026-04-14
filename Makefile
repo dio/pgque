@@ -3,6 +3,8 @@ SHELL        := bash
 
 include Makefile.versions.mk
 
+MODULES := . ./e2e
+
 PGQUE_SQL_URL := https://raw.githubusercontent.com/NikolayS/pgque/$(PGQUE_COMMIT)/sql/pgque.sql
 PGQUE_SQL     := e2e/testdata/pgque.sql
 
@@ -14,13 +16,11 @@ $(PGQUE_SQL):
 
 .PHONY: format
 format: ## Format all Go code with golangci-lint fmt
-	go tool golangci-lint fmt ./...
-	go tool golangci-lint fmt ./e2e/...
+	for m in $(MODULES); do (cd "$$m" && go tool golangci-lint fmt ./...); done
 
 .PHONY: lint
 lint: ## Run golangci-lint on all modules
-	go tool golangci-lint run ./...
-	go tool golangci-lint run ./e2e/...
+	for m in $(MODULES); do (cd "$$m" && go tool golangci-lint run ./...); done
 
 .PHONY: test
 test: ## Run unit tests

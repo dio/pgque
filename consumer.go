@@ -49,7 +49,7 @@ func (c *Consumer) Start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("pgque: open listen conn: %w", err)
 	}
-	defer listenConn.Close(context.Background()) //nolint:contextcheck
+	defer listenConn.Close(context.Background()) //nolint:contextcheck,errcheck
 
 	channel := pgx.Identifier{"pgque_" + c.queue}.Sanitize()
 	if _, err := listenConn.Exec(ctx, "LISTEN "+channel); err != nil {
