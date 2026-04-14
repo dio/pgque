@@ -1,8 +1,8 @@
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/dio/pgque v0.0.0-20260414103113-90db2ad6ff08 h1:PGo+zfY6Ae9t7qVQPK9Npa6qyYULSH9okxiY+siovYQ=
-github.com/dio/pgque v0.0.0-20260414103113-90db2ad6ff08/go.mod h1:pgQWD8oSzPvw0g3ComChS8V3TtUQ6w9ubXuRebiT5xw=
+github.com/dio/pgque v0.0.0-20260414110023-5163b77a5452 h1:BsStezSBOxgXrSBwhdExDHNHSCKY8IgtNq6J+UHabp0=
+github.com/dio/pgque v0.0.0-20260414110023-5163b77a5452/go.mod h1:pgQWD8oSzPvw0g3ComChS8V3TtUQ6w9ubXuRebiT5xw=
 github.com/fergusstrange/embedded-postgres v1.34.0 h1:c6RKhPKFsLVU+Tdxsx8q0UxCHsvZZ/iShAnljRBXs6s=
 github.com/fergusstrange/embedded-postgres v1.34.0/go.mod h1:w0YvnCgf19o6tskInrOOACtnqfVlOvluz3hlNLY7tRk=
 github.com/jackc/pgpassfile v1.0.0 h1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsIM=

@@ -3,7 +3,7 @@ module github.com/dio/pgque/e2e
 go 1.26
 
 require (
-	github.com/dio/pgque v0.0.0-20260414103113-90db2ad6ff08
+	github.com/dio/pgque v0.0.0-20260414110023-5163b77a5452
 	github.com/fergusstrange/embedded-postgres v1.34.0
 	github.com/jackc/pgx/v5 v5.7.4
 	github.com/stretchr/testify v1.11.1
