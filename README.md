@@ -90,6 +90,48 @@ err = client.Nack(ctx, msgs[0].BatchID, msgs[0], 60, "transient error")
 
 `Nack` per message, then `Ack` the batch when done.
 
+## Testing
+
+### Unit tests
+
+```
+go test -race ./...
+```
+
+### E2E tests
+
+The e2e tests live in a separate Go module under `e2e/` so that
+`embedded-postgres` and other test-only deps never appear in the main module's
+dependency graph. A `go.work` file ties them together for local development.
+
+The tests spin up an embedded Postgres instance (port 5454, no external
+installation needed) and install the pgque schema into it at startup. The
+schema is fetched from a pinned upstream commit and is not checked in:
+
+```
+make fetch-schema   # downloads e2e/testdata/pgque.sql
+make test.e2e       # runs the e2e suite (implies fetch-schema)
+```
+
+If `e2e/testdata/pgque.sql` is missing, the suite exits 0 with a message
+rather than failing, so CI without the fetch step does not break the build.
+
+#### How the tests replace pg_cron
+
+In production, `pgque.ticker()` is called by pg_cron on a schedule. In tests
+there is no pg_cron, so each test calls `ticker()` directly after publishing
+an event. Two queue config knobs make this reliable regardless of timing:
+
+- `ticker_max_count=1` -- tick fires after a single new event (not a batch)
+- `ticker_max_lag=0` -- tick fires even when lag is zero (no minimum wait)
+
+These are set per queue in `setupQueue` and cleaned up after each test.
+
+For retry flows (`TestNack`), the test calls `pgque.maint_retry_events()`
+directly. That function moves events from the retry queue back into the event
+table; it is intentionally separate from `pgque.maint()`, which only does
+table rotation.
+
 ## License
 
 Apache 2.0. See [LICENSE](LICENSE).
